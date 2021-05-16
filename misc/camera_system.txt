@@ -1,0 +1,115 @@
+@name Camera System 
+@inputs EGP:wirelink CAM:wirelink POD:wirelink Cam1:entity Cam2:entity Cam3:entity Cam4:entity Cam5:entity Cam6:entity Cam7:entity
+@outputs 
+@persist PLAYER:entity CurrentCamera Cameras:array Zoom Players:array
+@trigger 
+
+runOnTick(1)
+
+#[
+
+    Camera Security System By Marlxx
+
+]#
+
+if(first()|dupefinished()){
+    CurrentCamera = 1
+    Zoom = 0
+    EGP:egpClear()
+    holoCreate(1)
+    holoModel(1,"models/holograms/hq_icosphere.mdl")
+    holoColor(1, vec4(0,0,0,0))
+    holoMaterial(1, "models/alyx/emptool_glow")
+    rangerIgnoreWorld(1)
+    rangerHitEntities(1)
+    rangerDefaultZero(1)
+}
+
+if(POD["Active", number]){
+    Cameras = array(Cam1, Cam2, Cam3, Cam4, Cam5, Cam6, Cam7)
+    PLAYER = POD["Driver", entity]
+    POD["Hide HUD", number] = 0
+    CAM["FLIR", number] = 0
+    if(CurrentCamera != 7) {
+       CAM["Position", vector] = Cameras[CurrentCamera, entity]:pos()
+    }else{
+        CAM["Position", vector] = Cameras[CurrentCamera, entity]:pos() - vec(0,0,10)
+    }
+    
+    CAM["Parent", entity] = Cameras[CurrentCamera, entity]
+    
+    if(POD["W", number] && Zoom > 3){
+        Zoom--
+    }
+    if(POD["S", number] && Zoom < 90){
+        Zoom++
+    }
+    if(POD["Mouse1", number] && changed(POD["Mouse1", number]) && CurrentCamera < Cameras:count()){
+        soundStop(1)
+        
+        timer("next", 100)
+    }
+    if(POD["Mouse2", number] && changed(POD["Mouse2", number]) && CurrentCamera > 1){
+        soundStop(2)
+        
+        timer("back", 100)
+    }
+    if(clk("next")){
+        CurrentCamera++
+        Cameras[CurrentCamera, entity]:soundPlay(1, 0, "npc/scanner/combat_scan2.wav")
+    }
+    if(clk("back")){
+        CurrentCamera--
+        Cameras[CurrentCamera, entity]:soundPlay(2, 0, "npc/scanner/combat_scan2.wav")
+        }
+    CAM["FOV", number] = Zoom
+    HitPos = CAM["HitPos", vector]
+    Dist   = entity():pos():distance(HitPos)
+    if(POD["Shift", number]){
+        timer("Scan", 1000)
+        
+    }
+    if(clk("Scan")){
+        #[            No effects :(
+        holoPos(1, Cameras[CurrentCamera, entity]:pos())
+        holoColor(1, vec4(255,255,255,10))
+        holoScale(1, vec(50,50,50))
+        ]#
+        findClosest(Cameras[CurrentCamera, entity]:pos())
+        findByClass("Player")
+        Players = findToArray()
+        print(Players)
+        Cameras[CurrentCamera, entity]:soundPlay(3, 3, "npc/scanner/combat_scan_loop6.wav")
+        timer("beep",3000)
+    }
+    
+    if(clk("beep")&&!changed(CurrentCamera)){
+        #[            No effects :(
+        holoColor(1, vec4(0,0,0,0))
+        soundStop(3)
+        ]#
+        Cameras[CurrentCamera, entity]:soundPlay(4, 3, "npc/scanner/scanner_scan2.wav")
+        if(Players){
+            for(I=0, Players:count()){
+                EGP:egp3DTracker(I+220, Players[I, entity]:pos())
+                
+                EGP:egpBoxOutline(I+200, vec2(50,50), vec2(70,70))
+                EGP:egpColor(I+200, vec4(255,0,0,255))
+                EGP:egpParent(I+200, I+220)
+            }
+        timer("beep", 1000)
+    }
+    }
+    W = egpScrW(PLAYER)
+    H = egpScrH(PLAYER)
+    
+    EGP:egpLine(1,vec2(W/2-120,H/2),vec2(W/2-10,H/2))
+    EGP:egpLine(2,vec2(W/2+120,H/2),vec2(W/2+10,H/2))
+    
+    EGP:egpText(3,toString(round(toUnit("m",Dist))) + " m",vec2(W/2+120,H/2+ 50))
+    EGP:egpText(4,"CAM " + CurrentCamera,vec2(W/2+120,H/2+ 250))
+    EGP:egpSize(4, 30)
+    
+    
+}
+

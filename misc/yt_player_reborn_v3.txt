@@ -1,0 +1,216 @@
+@name YT Player Reborn V3
+@inputs 
+@outputs URL:string
+@persist Settings:table Queue:array Playlists:table Whitelist:table Playing Name:string Stage TotalStages CurrentSongName:string Timeouts VideoID:string CurrentDuration
+@persist CurrentSong:table 
+@trigger
+runOnTick(1)
+runOnChat(1)
+
+#[
+
+    Made by marlxx under GPL liscense
+
+
+]#
+if( first() ){
+    TotalStages = 5
+    function string number:formatting(){
+        local Hours = This / 3600
+        local Minutes = This / 60 % 60
+        local Seconds = This % 60
+        return round(Hours):toString() + ":" + round(Minutes):toString() + ":" + round(Seconds):toString()
+    }
+    
+    function printCool(Text:string){
+        if(!Settings["SILENT",number]){
+	       chatPrint(vec(120,120,120),"[",vec(255,255,255),
+		"Y",
+		vec(255,0,0),
+		"T",vec(120,120,120),
+		" ",
+		vec(205,5,255)," P",
+		vec(255,215,5),"L",
+		vec(205,215,15),"A",
+		vec(105,215,155),"Y",
+		vec(205,5,15),"E",
+		vec(155,55,255),"R",
+		vec(120,120,120),"]",
+		vec(230,230,230),Text)  
+        }else{
+            print(Text)
+        }
+    }
+    
+    function yt_search() {
+        Stage = 1
+        #holoAnim(1,16)
+        Name = "Connecting to Google Api ... \n " + (Stage/TotalStages)*100 + "%"
+        httpRequest(Settings["GOOGLE_API_URL",string] + CurrentSongName:replace(" ","+"))
+        timer("1_request",1000)
+        
+            
+    }
+    
+    function yt_play(ID:string){
+        Stage = 3
+        #holoAnim(1,15)
+        Name = "Connecting to YT Api ... \n " + (Stage/TotalStages)*100 + "%"
+        local URL = "https://www.youtube.com/watch?v=" + ID
+        httpRequest(Settings["YT_API_URL",string] + URL)
+        timer("3_fetch",2000)
+    }
+    
+    function setE2Name(Name:string){
+        setName(Name)    
+    } 
+    
+    Settings["YT_API_URL",string] = "http://ytdl.gaerisson-softs.fr/E2/YT_API?key=[KEY]&url="
+    Settings["GOOGLE_API_URL",string] = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&key=[KEY]"
+    Settings["VOLUME",number] = 1
+    Settings["RANGE",number] = 5000
+    Settings["TIMEOUT",number] = 15
+    Settings["NAMING",number] = 1
+    Settings["DEBUG",number] = 0
+    Settings["DANCER",number] = 0
+    Settings["FOLLOW",number] = 0
+    Settings["LOOP",number] = 0
+    Settings["OWNER_ONLY",number] = 0
+    Settings["SILENT",number] = 1
+    Settings["VERSION",string] = "24.08.20"
+    streamStop(5)
+}
+if(changed(Settings["NAMING",number])&&!Settings["NAMING",number]){
+    #setName("YT Player Reborn " + Settings["VERSION",string] + "\n Made by marlxx")    
+}
+
+
+if(Queue:count()>0&&!Playing){
+    CurrentSongName = Queue:popString()
+    yt_search()
+}elseif(changed(Playing)&!Playing){
+    Name = "There is no song ! type .add for adding one "
+}
+
+if(Settings["FOLLOW",number]){entity():setPos(owner():pos() +vec(0,0,100))}
+if(changed(Name)&&Settings["NAMING",number]){
+    setE2Name(Name)
+}
+
+
+if(chatClk()){
+    local Command = lastSaid():explode(" ")
+    local User = lastSpoke()
+    
+    if(User == owner()){
+        local Command = lastSaid():explode(" ")  
+        if(Command[1,string] == ".set"){
+            hideChat(1)
+            local Setting = Command[2,string]
+            local To = Command[3,string]
+            if(Settings:exists(Setting:upper())){
+                Settings[Setting:upper(),number] = To:toNumber()
+                printCool("Sucessfully set " + Setting + " to " + To)  
+            }else{
+                printCool("That setting does not exist")  
+            }
+        }    
+    }
+    
+    switch(Command[1,string]){
+        case ".add",
+            hideChat(1)
+            Queue:pushString(lastSaid():sub(5))
+            break
+            
+        case ".queue",
+            hideChat(1)
+            printCool("Songs in queue : ")
+            #chatPrint(vec(150,150,150),"[0]" + " -> " + CurrentSong["title",string])   
+            for(X=1,Queue:count()){
+              #  chatPrint(vec(150,150,150),X + " -> " + Queue[X,string])    
+            }
+            break
+            
+            
+        case ".skip",
+            hideChat(1)
+            Queue:popString()
+            streamStop(5)
+            Stage = 0
+            Playing = 0
+            Name = "There is no song ! type .add for adding one "
+            break
+    }
+    
+}
+if(Stage){
+if(clk("1_request")){
+    local Data = httpData()
+    if(Data){
+        Stage = 2
+        Name = "Found video ! \n " + (Stage/TotalStages)*100 + "%"
+        local JSON = jsonDecode(Data)
+        VideoID = JSON["items",table][1,table]["id",table]["videoId",string]
+        timer("2_request",1000)
+    }else{
+        timer("1_request",1000)
+    }
+}
+
+if(clk("2_request")){
+    if(httpCanRequest()){
+        yt_play(VideoID)
+    }else{
+        timer("2_request",2400)
+    }
+}
+if(clk("3_fetch")){
+    local Data = httpData()
+    Stage = 4
+    if(!Timeouts){
+        Name = "Fetching Data ... \n " + (Stage/TotalStages)*100 + "%"
+    }else{
+        Name = "Fetching Data ... \n " + (Stage/TotalStages)*100 + "%" + "\n Attempt " + Timeouts + "/" + Settings["TIMEOUT",number]
+    }
+    
+    if(Data){
+        Stage = 0
+        Playing = 1
+        local JSON = jsonDecode(Data)[1,table]
+        CurrentSong = table()
+        printCool("Now Playing : " + JSON["title",string] + "! ")
+        CurrentSong["title",string] = JSON["title",string]
+        CurrentSong["duration",number] = JSON["duration",number]
+        CurrentSong["autor",string] = JSON["uploader",string]
+        CurrentSong["url",string] = JSON["url",string]
+        URL = JSON["url",string]
+        if(Settings["NAMING",number]){setName("Playing " + CurrentSong["title",string] + "\n" + "By " + CurrentSong["autor",string] + "\n" + CurrentDuration:formatting() + "/" + 
+        CurrentSong["duration",number]:formatting() + "\n\n YT Player Reborn V3 ( " + Settings["VERSION",string] + " ) ")}
+        
+        timer("second",1000)
+        print(CurrentSong["url",string])
+        entity():streamStart(5,CurrentSong["url",string])
+        streamVolume(5,Settings["VOLUME",number])
+    }else{
+        timer("3_fetch",3000)
+        Timeouts++
+    }
+}
+}
+if(Playing){
+if(CurrentDuration>CurrentSong["duration",number]&&!Settings["LOOP",number]){
+    Playing = 0
+    
+}elseif(Settings["LOOP",number]&&CurrentDuration>CurrentSong["duration",number]){
+    CurrentDuration = 0
+    entity():streamStart(5,CurrentSong["url",string])
+}
+if(clk("second")){
+    CurrentDuration++
+    if(Settings["NAMING",number]){setName("Playing " + CurrentSong["title",string] + "\n" + "By " + CurrentSong["autor",string] + "\n" + CurrentDuration:formatting() + "/" + 
+        CurrentSong["duration",number]:formatting() + "\n\n YT Player Reborn V3 ( " + Settings["VERSION",string] + " ) "
+        
+        )}
+    timer("second",1000)
+}}

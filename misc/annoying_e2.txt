@@ -1,0 +1,48 @@
+@name Bodyguard
+@inputs 
+@outputs 
+@persist Pos OriginalZ Animated1 Animated2 Target:entity LastTarget:entity I Ents:table
+@trigger
+runOnTick(1)
+if( first() ){
+    for(X=1,6){
+        holoCreate(X)
+        holoModel(X,"models/Humans/Group01/Male_Cheaple.mdl")
+        local E = propSpawn("models/hunter/blocks/cube025x025x025.mdl",1)
+        E:setColor(vec(),0)
+        E:propFreeze(0)
+        E:setPos(entity():pos() + vec(0,0,400))
+        
+        findByClass("player")
+        Target = findClosest(entity():pos())
+        #E:streamStart(1,"https://cdn.discordapp.com/attachments/463005157517426690/723614966518906930/PLAYING_RECORDER_WITH_NOSTRIL.mp3")
+        holoParent(X,E)
+        Ents[X,entity] = E
+    }
+    OriginalZ = Ents[1,entity]:pos():z()
+    
+}
+if(!Target:isAlive()|Target==LastTarget){
+    LastTarget = Target
+    findByClass("player")
+    Target = findClosest(entity():pos())
+}
+
+for(X=1,Ents:count()){
+    local E = Ents[X,entity]
+    E:setAng((vec(Target:pos():x(),Target:pos():y(),0) - vec(E:pos():x(),E:pos():y(),0)):toAngle())
+    E:setPos(vec(E:pos():x(),E:pos():y(),OriginalZ))
+    if(E:pos():distance(Target:pos())>100){
+        #if(!Animated1){holoAnim(X,16) Animated1 = 1}
+        Animated2 = 0
+        streamStop(1)
+        E:applyForce(E:forward()*300)
+    }else{
+        Animated1 = 0
+        I++
+        #if(!Animated2){holoAnim(X,1) Animated2 = 1 }
+        
+    }
+    Pos+=0.2
+
+}
