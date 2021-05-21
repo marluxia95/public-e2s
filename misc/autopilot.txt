@@ -1,0 +1,445 @@
+@name AutoPilot
+@inputs Home:entity R:wirelink Car:wirelink CarE:entity EGP:wirelink
+@outputs KPH 
+
+@persist A:array Command Ply:entity EGPE:entity
+
+@persist Start CruiseSpeed Throttle Brake Gear Steer
+
+@persist Range R1 R2 R3 R4 R5 R6 R7 R8 R9 LeftDis RightDis CenterDis BrakeAction SteerAction Destinations:array Dest:vector Idle
+#config
+@persist Debug HasDebugged IsCmdRunning Lock AlreadyLocked AlreadyUnlocked Disable Health Played Mode:string Label:string Letters:table Ang
+
+@trigger 
+runOnTick(1)
+runOnChat(1)
+
+#[
+
+    - - - - - - - - - - - - - - -
+        Vehicle / Simphys AI by Marlxx
+        
+    - - - - - - - - - - - - - - - 
+
+]#
+
+
+if(first()){
+    function egp_init(){
+        EGP:egpClear()
+        EGP:egpBox(1,vec2(1,1),vec2(1200,800))
+        EGP:egpColor(1,vec(255))
+        EGP:egpBox(2,vec2(1,1),vec2(325,800))
+        EGP:egpColor(2,vec(240))
+        EGP:egpText(3,round(KPH):toString(),vec2(65,40))
+        EGP:egpSize(3,50)
+        EGP:egpColor(3,vec(15))
+        EGP:egpFont(3,"Times New Roman")
+        EGP:egpBox(4,vec2(440,345),vec2(675,100))
+        EGP:egpColor(4,vec(235))
+        
+    }
+    Debug = 0
+    #[
+    Ranger configurations ( do not touch )
+    ]#
+    rangerHitEntities(1)
+    rangerIgnoreWorld(0)
+    rangerHitWater(0)
+    rangerFlags("ei")
+    rangerDefaultZero(1)
+    Range=1000
+    
+    if(Debug){ # shows ranger holograms
+    
+        holoCreate(1)
+        holoCreate(2)
+        holoCreate(3)
+        holoCreate(4)
+        holoCreate(5)
+        holoCreate(6)
+        holoCreate(7)
+        holoCreate(8)
+        holoCreate(9)
+        holoColor(5, vec(0,255,2)) #colors center ranger
+    
+    }
+    entity():isWeldedTo():propFreeze(1)
+
+    
+    timer("unfreeze",1000)
+}
+
+KPH = toUnit("km/h", CarE:vel():length())
+EGP:egpSetText(3,round(KPH):toString())
+if(!Command==2){CruiseSpeed = toUnit("km/h",Ply:vel():length())+40}
+A = owner():lastSaid():explode(" ")
+if(clk("unfreeze")){
+    entity():isWeldedTo():propFreeze(0)
+    egp_init()
+    
+}
+if(first()){
+    entity():isWeldedTo():setColor(vec(25,25,25),255)
+    
+    function label_create(Current,Char:string) {
+        holoCreate(100+Current)
+        
+        holoModel(100+Current, "models/sprops/misc/alphanum/alphanum_" + Char:lower() + ".mdl")
+        if(Char==" "){holoColor(100+Current,vec4(0,0,0,0))}
+        print("Created")
+        holoPos(100+Current,holoEntity(100):pos()+vec(0,Current*10,0))
+        holoAng(100+Current,ang(0,-90,0))
+        holoParent(100+Current,100)
+    }
+    
+    function label_print(){
+        holoCreate(100)
+        holoColor(100,vec4(0,0,0,0))
+        holoPos(100,entity():pos()+vec(30,-60,20))
+        holoAng(100,ang(0,0,0))
+        holoParent(100,entity()) 
+        local Chars = Label:explode("")
+        for(X=1, Chars:count()){
+            
+            label_create(X,Chars[X,string])  
+             
+        }
+        holoAng(100,ang(0,90,0))
+        
+    }
+    
+    function color_update(){
+        local Chars = Label:explode("")
+        #if(Ang>360){Ang=0}else{Ang+=0.1}
+        for(X=1, Chars:count()){
+            holoColor(100+X, hsv2rgb(360*curtime()%360,1,1))
+            
+        }
+    }
+    #label_print()
+    function steer(Pos:vector){
+        if(CarE:bearing(Pos)/100>1&&!SteerAction){
+            Steer = 1
+            Throttle = 20
+        }elseif(CarE:bearing(Pos)/100<(-1)&&!SteerAction){
+            Steer = -1
+            Throttle = 20
+        }elseif(!SteerAction){
+            Steer = CarE:bearing(Pos)/100
+        }
+    }
+    
+    function manu_steer(){
+        if(CarE:bearing(entity():isWeldedTo():forward())/100>1&&!SteerAction){
+            Steer = 1
+            Throttle = 20
+        }elseif(CarE:bearing(entity():isWeldedTo():forward())/100<(-1)&&!SteerAction){
+            Steer = -1
+            Throttle = 20
+        }elseif(!SteerAction){
+            Steer = CarE:bearing(entity():isWeldedTo():forward())/100
+        }
+    }
+    
+    function rangers(){
+        Ranger1=rangerAngle(Range,-40,0)
+        Ranger2=rangerAngle(Range,-30,0)
+        Ranger3=rangerAngle(Range,-20,0)
+        Ranger4=rangerAngle(Range,-10,0)
+        Ranger5=rangerAngle(Range,0,0)
+        Ranger6=rangerAngle(Range,10,0)
+        Ranger7=rangerAngle(Range,20,0)
+        Ranger8=rangerAngle(Range,30,0)
+        Ranger9=rangerAngle(Range,40,0)
+        
+        R1 = Ranger1:distance()
+        R2 = Ranger1:distance()
+        R3 = Ranger3:distance()
+        R4 = Ranger4:distance()
+        R5 = Ranger5:distance()
+        R6 = Ranger6:distance()
+        R7 = Ranger7:distance()
+        R8 = Ranger8:distance()
+        R9 = Ranger9:distance()
+        
+        RightDis = (R1+R2+R3)/3
+        CenterDis = (R4+R5+R6)/3
+        LeftDis = (R7+R8+R9)/3
+        if(Debug) {
+            #print(CenterDis + " R : " + RightDis + " L : " + LeftDis)
+            holoPos(1,Ranger1:position())
+            holoPos(2,Ranger2:position())
+            holoPos(3,Ranger3:position())
+            holoPos(4,Ranger4:position())
+            holoPos(5,Ranger5:position())
+            holoPos(6,Ranger6:position())
+            holoPos(7,Ranger7:position())
+            holoPos(8,Ranger8:position())
+            holoPos(9,Ranger9:position())
+            
+        }
+    }
+    
+    function dist_management() {
+        #print("dist act")
+        if(RightDis<490&&CenterDis<490){
+            Steer = -1
+            SteerAction = 1
+            if(Debug){print("Obstacle Detected R")}
+        }elseif(LeftDis<490&CenterDis<490){
+            Steer = 1
+            SteerAction = 1
+            if(Debug){print("Obstacle Detected L")}
+        }elseif(RightDis<490&CenterDis==490){
+            Steer = -0.5
+            SteerAction = 1
+            if(Debug){print("Obstacle Detected R")}
+        }elseif(LeftDis<490&CenterDis==490){
+            Steer = 0.5
+            SteerAction = 1
+            if(Debug){print("Obstacle Detected L")}
+        }elseif(LeftDis<100&RightDis<100|CenterDis<100){
+            Steer = 0.5
+            Brake = 100
+            Throttle = 0
+            BrakeAction = 1
+            SteerAction = 1
+            if(Debug){print("Obstacle Detected C")}
+        }elseif(LeftDis>490&&RightDis>490&&CenterDis>490){
+            BrakeAction = 0
+            SteerAction = 0
+            #print("none")
+        }
+    }
+}
+
+
+#color_update()
+if(owner():health()<30&&Command==0){
+    Dest = entity():owner():pos()
+    Command = 3
+}
+
+if(A[1,string]=="cmd"&&chatClk(owner())){
+    HasDebugged = 0
+    Idle = 0
+    if(A[2,string]=="ap" && A[3,string]==""){
+        hideChat(1)
+        printColor(vec(255,0,0), "Error : Specify command. ")
+    }elseif(A[2,string]=="ap"){
+        hideChat(1)
+        if(A[3,string]=="home"&Home){
+            printColor(vec(0,155,50), "Received, going to location 'HOME' ")
+            entity():soundPlay(2,3,"vo/npc/male01/letsgo01.wav")
+            Command = 1
+        }elseif(!Home&&A[3,string]=="home"){
+            printColor(vec(255,0,0), "Error : Home isnt avaiable ")
+        }
+        if(A[3,string]=="chase"&A[4,string]!=""){
+            printColor(vec(0,155,50), "Received, chasing " + A[4,string])
+            Name = A[4,string]
+            Ply = findPlayerByName(Name)
+            print(Ply)
+            Command = 2
+        }elseif(A[3,string]=="chase"){
+            printColor(vec(255,0,0), "Error : No player Selected ")
+        }
+        if(A[3,string]=="debug"&&!Debug){
+            printColor(vec(0,155,50), "Debug mode activated")
+            Debug = 1
+            HasDebugged = 1
+        }
+        if(A[3,string]=="disable"&&!Disable){
+
+            Disable = 1
+        }
+        if(A[3,string]=="enable"&&Disable){
+            printColor(vec(0,155,50), "Debug mode activated")
+            Disable = 0
+        }
+        if(A[3,string]=="debug"&&Debug&&!HasDebugged){
+            printColor(vec(0,155,50), "Debug mode deactivated")
+            Debug = 0
+        }
+        if(A[3,string]=="add"){
+            Destinations:pushVector(owner():pos())
+            printColor(vec(0,155,50), "Added Destination ")
+        }
+        if(A[3,string]=="go"){
+            if(A[4,string]!=""){
+                Number = A[4,string]:toNumber()
+                Dest = Destinations[Number, vector]
+                Command = 3
+                printColor(vec(0,155,50), "Going to destination ")
+                entity():soundPlay(2,3,"vo/npc/male01/letsgo01.wav")
+            }else{
+                printColor(vec(255,0,0), "Error : No destination Selected ")
+            }
+        }
+        if(A[3,string]=="pickmeup"){
+
+            Dest = entity():owner():pos()
+            Command = 3
+            printColor(vec(0,155,50), "Going to destination ")
+            
+        }
+        if(A[3,string]=="pick"){
+            local Target = findPlayerByName(A[4,string])
+            Dest = Target:pos()
+            Command = 3
+            printColor(vec(0,155,50), Dest)
+            
+        }
+        if(A[3,string]=="drag"){
+
+            Command = 4
+            printColor(vec(0,155,50), "Come onn")
+            
+        }
+        if(A[3,string]=="forward"){
+
+            Command = 5
+            print("yes")
+        }
+        if(A[3,string]=="stop"){
+            printColor(vec(0,155,50), "Received, stopping")
+            Command = 0
+        }
+        
+    }
+}
+# Ranger stuff
+rangers()
+dist_management()
+if(Car["Health",number]<200&&!Played){
+    entity():soundPlay(0,0,"ambient/levels/labs/teleport_alarm_loop1.wav")  
+    Played = 1  
+    Command = 4
+}elseif(Car["Health",number]>200&&Played){
+    soundStop(0)
+}
+if(Start&&!Disable) {
+    Car["Engine Start", number] = 1
+    
+    
+    if(!Idle){
+        Car["Throttle", number] = Throttle
+        Car["Gear", number] = Gear
+        Car["Handbrake", number] = 0
+    }else{
+        Car["Throttle", number] = 0
+        Car["Gear", number] = 0
+        Car["Handbrake", number] = 1
+    }
+    #AlreadyLocked = 0
+    #if(!AlreadyUnlocked){Car["Lock", number] = 0 AlreadyUnlocked=1}
+    if(!Idle){Car["Brake/Reverse", number] = Brake}else{Car["Brake/Reverse", number] = 0}
+    Car["Engine Stop", number] = 0
+    Car["Steer", number] = Steer
+    if(KPH<CruiseSpeed && !BrakeAction){
+        Throttle = 25
+        Brake = 0
+
+    }elseif(KPH>CruiseSpeed){
+        Throttle = 0
+        Brake = 60
+    }
+
+}elseif(!Disable){
+    Brake = 0
+    Car["Throttle", number] = 0
+    Car["Engine Start", number] = 0
+    Car["Engine Stop", number] = 1
+    Car["Steer", number] = 0
+    
+}
+
+if(Command){
+    
+    if(Command==1){
+        steer(Home:pos())
+        Start = 1
+        
+        #print(CarE:pos():distance(Home:pos()))
+        if(CarE:pos():distance(Home:pos())<2500&&KPH>30){
+            CruiseSpeed = 30
+        }else{
+            CruiseSpeed = 120
+        }
+        if(CarE:pos():distance(Home:pos())<70){
+            printColor(vec(0,155,50), "Arrived")
+            Start = 0
+            Command = 0
+            
+
+        }
+    }
+    
+    if(Command==2){
+       
+        steer(Ply:pos())
+        Start = 1
+        CruiseSpeed = 200
+        if(!Ply:isAlive()){Command = 9 Idle = 1 CruiseSpeed = 0}
+        #print(CarE:pos():distance(Ply:pos()))
+
+    }
+    if(Command==3){
+        steer(Dest)
+        Start = 1
+        
+        #print(CarE:pos():distance(Home:pos()))
+        if(CarE:pos():distance(Dest)<1500|SteerAction|BrakeAction){
+            CruiseSpeed = 20
+        }else{
+            CruiseSpeed = 60
+        }
+        if(CarE:pos():distance(Dest)<270){
+            printColor(vec(0,155,50), "Arrived")
+            Idle = 1
+            Command = 9
+            CruiseSpeed = 0
+            entity():isWeldedTo():soundPlay(1,1.4,"simulated_vehicles/horn_3.wav")
+            entity():soundPlay(2,3,"vo/npc/male01/overhere01.wav")
+            soundVolume(1,200)
+
+        }
+    }
+    if(Command==4){
+        if(!SteerAction){Steer = 0}
+        Start = 1
+        
+        CruiseSpeed = 120
+        
+        timer("stop",20000)
+        if(clk("stop")|CenterDis<100){
+            printColor(vec(0,155,50), "Arrived")
+            Idle = 1
+            Command = 9
+            CruiseSpeed = 0
+
+        }
+    
+    }
+    if(Command==5){
+        if(!SteerAction){Steer = 0}
+        Start = 1
+        
+        if(CarE:pos():distance(Dest)<1500|SteerAction|BrakeAction){
+            CruiseSpeed = 20
+        }else{
+            CruiseSpeed = 60
+        }
+        
+    
+    }
+}else{
+    Start = 0
+    
+}
+
+
+
+if(!Start&&!Lock){Lock=1}
+if(Start&&Lock){Lock=0}
